@@ -1,9 +1,12 @@
 '''
 Programmer: Mike Kovacevich
-Last edited: 11/9/20
+Last edited: 11/22/20
 E-mail: mgk56@drexel.edu
 
-Stacking sensitivity for different time windows and different gamma (spectral indices). Gamma will range from 2-3 and the time windows will range from 10^(-2) seconds to 10^5 seconds. Stacking sensitivity will be performed with Csky likelihood software.  
+*****This script is used to only run the background and signal trials, another script is used to calculate the fluxes*****
+
+Stacking sensitivity for different time windows and different gamma (spectral indices). Gamma will range from 2-3 and the time windows 
+will range from 10^(-2) seconds to 10^5 seconds. Stacking sensitivity will be performed with Csky likelihood software.  
 '''
 
 import numpy as np
@@ -14,20 +17,14 @@ import histlite as hl
 import csky as cy
 
 #Building/loading MESC data from analysis directory
-'''
-repo = cy.selections.Repository()
-ana_dir = cy.utils.ensure_dir('/home/mkovacevich/FRB_analysis/cascades_ana')
-repo = cy.selections.Repository()
-ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr ,dir=ana_dir)
-'''
 ana_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/cascades_ana')
 repo = cy.selections.Repository()
-ana = cy.get_analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir)
+ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir)
 
-#Directories to store the trials
+#Directories to store the trials as nested dicts
 trials_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/trials')
-sig_dir = cy.utils.ensure_dir('{}/sig'.format(trials_dir))
-bg_dir = cy.utils.ensure_dir('{}/bg'.format(trials_dir))
+sig_dir = cy.utils.ensure_dir('{}/weighted_livetime_sig'.format(trials_dir))
+bg_dir = cy.utils.ensure_dir('{}/weighted_livetime_bg'.format(trials_dir))
 
 parser = argparse.ArgumentParser(description='Process sensitivities for FRB catalog over livetime of MESC 7yr dataset')
 parser.add_argument('--gamma',type=float,help='Spectral indice for E')
@@ -67,6 +64,7 @@ FRB_dec_rad = [-0.08691739674931762, -0.6841690667817772, 0.10611601852125524, -
 
 FRB_time_window = np.ones_like(FRB_ra_rad)*args.dt/86400.
 
+#Printing out length of each array to check they are all the same length, should each contain 22 elements
 print(len(FRB_mjd_time))
 print(len(FRB_ra_rad))
 print(len(FRB_dec_rad))
@@ -90,12 +88,12 @@ print("Starting Trials")
 
 def do_background_trials(N=n_bg_trials):
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
     trials = tr.get_many_fits(N,logging=False)
     # save to disk
-    dir = cy.utils.ensure_dir('{}/gamma/{}/dt/{}'.format(bg_dir, args.gamma, args.dt))
+    dir = cy.utils.ensure_dir('{}/dt/{}'.format(bg_dir, args.dt))
     filename = '{}/bg_trials_seed_{}.npy'.format(dir, args.seed)
     print('->', filename)
     # notice: trials.as_array is a numpy structured array, not a cy.utils.Arrays
@@ -105,10 +103,10 @@ n_sigs = np.r_[2:10:1, 10:30.1:2]
 def do_signal_trials(n_sig, N=n_sig_trials):
     # get trial runner
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
-    trials = tr.get_many_fits(N, n_sig, logging=False)
+    trials = tr.get_many_fits(N, n_sig, poisson = True, logging=False)
     # save to disk
     dir = cy.utils.ensure_dir('{}/gamma/{}/dt/{}/n_sig/{}'.format(sig_dir, args.gamma, args.dt, n_sig))
     filename = '{}/sig_trials_{}.npy'.format(dir, args.seed)
@@ -119,17 +117,13 @@ def do_signal_trials(n_sig, N=n_sig_trials):
 def ndarray_to_TSD(trials):
     return cy.dists.TSD(cy.utils.Arrays(trials))
 
-def tsd_merge(x):
-    ts_values = np.concatenate([xx[0] for xx in x])
-    n_zero = sum(xx[1] for xx in x)
-    return cy.dists.TSD(ts_values, n_zero=n_zero)
-
+#This function is not typically run from this script since it does not need to run on npx, instead another script is run that utilizes this function
 def find_n_sig(beta=0.9, nsigma=None):
     # get signal trials, background distribution, and trial runner
     sig_trials = cy.bk.get_best(sig, 'gamma', args.gamma, 'dt', args.dt, 'n_sig')
     b = cy.bk.get_best(bg, 'gamma', args.gamma, 'dt', args.dt)
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'box_mode':'center'}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # determine ts threshold
     if nsigma is not None:
@@ -137,7 +131,7 @@ def find_n_sig(beta=0.9, nsigma=None):
     else:
         ts = b.median()
     # include background trials in calculation
-    trials = {0: tr.get_many_fits(100000)}
+    trials = {0: b.trials}
     trials.update(sig_trials)
     # get number of signal events
     # (arguments prevent additional trials from being run)
@@ -146,10 +140,9 @@ def find_n_sig(beta=0.9, nsigma=None):
     return tr.to_E2dNdE(result, E0=1e5)
 
 
-#The bg and sig trials can be run at the same time used a diamond dag. Both of these trials need to be complete before
-#going on to compute the sensitivities
+#The bg and sig trials can be run at the same time on npx. Both of these sig and bg trials need to be complete before calculating the fluxes
 if args.choose == 1:
-    print('Computing bg trials for gamma = ' + str(args.gamma) + 'and w/ the time window ' + str(args.dt))
+    print('Computing bg trials w/ the time window ' + str(args.dt))
     do_background_trials(N=n_bg_trials)
     
 elif args.choose == 2:
@@ -158,31 +151,24 @@ elif args.choose == 2:
         do_signal_trials(n_sig, N=n_sig_trials)
         
 elif args.choose == 3:
-    #bg = cy.bk.get_all(
-    #'{}/'.format(bg_dir),'bg*npy',
-    bg = cy.bk.get_all(
-    '/data/user/mkovacevich/FRB_analysis/trials/bg/gamma/2.0/dt/0.01',
-    'bg_trials_seed_*.0.npy',
-    pre_convert=lambda x: (x['ts'][x['ts'] > 0], np.sum(x['ts'] == 0)),
-    merge = tsd_merge,
-    log=True)
-    #'{}/'.format(sig_dir),'sig*npy'
-    sig = cy.bk.get_all('/data/user/mkovacevich/FRB_analysis/trials/sig/gamma/2.0/dt/0.01/n_sig','sig*npy', merge=np.concatenate, post_convert=cy.utils.Arrays)
+    bg = cy.bk.get_all('{}/'.format(bg_dir),'bg*npy', merge=np.concatenate,post_convert=ndarray_to_TSD)
+    sig = cy.bk.get_all('{}/'.format(sig_dir),'sig*npy', merge=np.concatenate, post_convert=cy.utils.Arrays)
     fluxs_sens = []
-    fluxs_sens = find_n_sig(beta=0.9)
-
+    fluxs_sens = find_n_sig(beta=0.5)
     print('sens = ' + str(fluxs_sens))
-    np.save('/data/user/mkovacevich/FRB_analysis/sens_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_sens,allow_pickle=True)
+    np.save('sens_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_sens,allow_pickle=True)
     
     fluxs_3sig_disc,fluxs_4sig_disc, fluxs_5sig_disc = [],[],[]
     fluxs_3sig_disc = find_n_sig(beta=0.9,nsigma=3)
     print('3sig = ' + str(fluxs_3sig_disc))
-    np.save('/data/user/mkovacevich/FRB_analysis/3sig_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_3sig_disc,allow_pickle=True)
+    np.save('3sig_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_3sig_disc,allow_pickle=True)
     
     fluxs_4sig_disc = find_n_sig(beta=0.9,nsigma=4)
-    np.save('data/user/mkovacevich/FRB_analysis/4sig_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_4sig_disc,allow_pickle=True)
+    np.save('4sig_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_4sig_disc,allow_pickle=True)
     print('4sig = ' + str(fluxs_4sig_disc))
     
     fluxs_5sig_disc = find_n_sig(beta = 0.9, nsigma=5)
-    print('/data/user/mkovacevich/FRB_analysis/5sig = ' + str(fluxs_5sig_disc))
+    print('5sig = ' + str(fluxs_5sig_disc))
     np.save('5sig_gamma_'+str(args.gamma)+'dt'+str(args.dt),fluxs_5sig_disc,allow_pickle=True)
+
+    
