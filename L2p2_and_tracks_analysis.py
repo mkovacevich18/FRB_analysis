@@ -1,3 +1,8 @@
+'''
+***This script saves the data from previous FRB analyses. The data was collected using webplotdigitizer to extract the data points
+
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
