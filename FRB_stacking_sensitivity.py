@@ -19,7 +19,7 @@ import csky as cy
 #Building/loading MESC data from analysis directory
 ana_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/cascades_ana')
 repo = cy.selections.Repository()
-ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir)
+ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir) # use load_sig = False if running background trials (reduces computational time)
 
 #Directories to store the trials as nested dicts
 trials_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/trials')
@@ -88,7 +88,7 @@ print("Starting Trials")
 
 def do_background_trials(N=n_bg_trials):
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
     trials = tr.get_many_fits(N,logging=False)
@@ -103,7 +103,7 @@ n_sigs = np.r_[2:10:1, 10:30.1:2]
 def do_signal_trials(n_sig, N=n_sig_trials):
     # get trial runner
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
     trials = tr.get_many_fits(N, n_sig, poisson = True, logging=False)
@@ -123,7 +123,7 @@ def find_n_sig(beta=0.9, nsigma=None):
     sig_trials = cy.bk.get_best(sig, 'gamma', args.gamma, 'dt', args.dt, 'n_sig')
     b = cy.bk.get_best(bg, 'gamma', args.gamma, 'dt', args.dt)
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'box_mode':'center'}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma)}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # determine ts threshold
     if nsigma is not None:
