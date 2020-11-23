@@ -6,7 +6,7 @@ E-mail: mgk56@drexel.edu
 *****This script is used to only run the background and signal trials, another script is used to calculate the fluxes*****
 
 Stacking sensitivity for different time windows and different gamma (spectral indices). Gamma will range from 2-3 and the time windows 
-will range from 10^(-2) seconds to 10^5 seconds. Stacking sensitivity will be performed with Csky likelihood software.  
+will range from 10^(-2) seconds to 10^5 seconds and are log-spaced. Stacking sensitivity will be performed with Csky likelihood software.  
 '''
 
 import numpy as np
