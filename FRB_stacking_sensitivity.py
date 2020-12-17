@@ -16,12 +16,12 @@ import csky as cy
 #Building/loading MESC data from analysis directory
 ana_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/cascades_ana')
 repo = cy.selections.Repository()
-ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir, load_sig = False)
+ana = cy.analysis.Analysis(repo, cy.selections.MESEDataSpecs.mesc_7yr, dir=ana_dir)
 
 #Directories to store the trials
 trials_dir = cy.utils.ensure_dir('/data/user/mkovacevich/FRB_analysis/trials')
-sig_dir = cy.utils.ensure_dir('{}/centered_dt_sig'.format(trials_dir))
-bg_dir = cy.utils.ensure_dir('{}/centered_dt_bg'.format(trials_dir))
+sig_dir = cy.utils.ensure_dir('{}/weighted_livetime_sig'.format(trials_dir))
+bg_dir = cy.utils.ensure_dir('{}/weighted_livetime_bg'.format(trials_dir))
 
 parser = argparse.ArgumentParser(description='Process sensitivities for FRB catalog over livetime of MESC 7yr dataset')
 parser.add_argument('--gamma',type=float,help='Spectral indice for E')
@@ -84,7 +84,7 @@ print("Starting Trials")
 
 def do_background_trials(N=n_bg_trials):
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'box_mode':'center'}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
     trials = tr.get_many_fits(N,logging=False)
@@ -99,7 +99,7 @@ n_sigs = np.r_[2:10:1, 10:30.1:2]
 def do_signal_trials(n_sig, N=n_sig_trials):
     # get trial runner
     src = cy.sources(FRB_ra_rad, FRB_dec_rad, mjd = FRB_mjd_time, sigma_t = np.zeros_like(FRB_ra_rad), t_100 = FRB_time_window)
-    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'box_mode':'center'}
+    conf = {'extended':True, 'space':"ps",'time':"transient",'sig':"transient",'flux': cy.hyp.PowerLawFlux(args.gamma),'rates_by':'livetime'}
     tr = cy.get_trial_runner(conf, src = src, ana=ana)
     # run trials
     trials = tr.get_many_fits(N, n_sig, poisson = True, logging=False)
